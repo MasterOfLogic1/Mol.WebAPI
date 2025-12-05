@@ -4,6 +4,7 @@ class TeamMember(models.Model):
     full_name = models.CharField(max_length=255)
     occupation = models.CharField(max_length=255)
     bio = models.TextField(blank=True, null=True)
+    avatar_url = models.URLField(blank=True, null=True)
     email_url = models.URLField(blank=True, null=True)
     linkedin_url = models.URLField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
