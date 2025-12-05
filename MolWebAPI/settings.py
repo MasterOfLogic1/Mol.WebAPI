@@ -117,16 +117,26 @@ REST_FRAMEWORK = {
     'EXCEPTION_HANDLER': 'MolWebAPI.utils.custom_exception_handler',
 }
 
+# Build servers list dynamically from config
+SERVERS_LIST = [
+    {'url': 'http://127.0.0.1:8000/', 'description': 'Local Development Server'},
+]
+
+# Add production server if configured
+PRODUCTION_SERVER_URL = config('PRODUCTION_SERVER_URL', default=None)
+if PRODUCTION_SERVER_URL:
+    SERVERS_LIST.append({
+        'url': PRODUCTION_SERVER_URL,
+        'description': 'Production Server'
+    })
+
 SPECTACULAR_SETTINGS = {
     'TITLE': 'MolWebAPI',
     'DESCRIPTION': 'API for Mol Web Application. Complete API documentation for Authentication, Courses, Blog, Team, and User Profile endpoints.',
     'VERSION': '1.0.0',
     
-    # Add a URL to be displayed on Swagger
-    'SERVERS': [
-        {'url': 'http://127.0.0.1:8000/', 'description': 'Local Development Server'},
-        {'url': 'https://web-production-6a37.up.railway.app/', 'description': 'Production Server'}  
-    ],
+    # Add URLs to be displayed on Swagger (from config)
+    'SERVERS': SERVERS_LIST,
 
     # Contact Information
     'CONTACT': {
