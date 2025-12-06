@@ -4,6 +4,7 @@ from decouple import config
 import dj_database_url
 import os
 from corsheaders.defaults import default_headers
+import time
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -13,6 +14,19 @@ SMTP_SEND_MAIL_URL = config('SMTP_SEND_MAIL_URL')
 SMTP_API_KEY = config('SMTP_API_KEY')
 PORTAL_WEB_APP_URL = config('PORTAL_WEB_APP_URL')
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+USE_TZ = True
+TIME_ZONE = "UTC"
+
+os.environ['TZ'] = 'UTC'
+
+
+# MinIO Configuration
+MINIO_ENDPOINT = config('MINIO_ENDPOINT', default='')
+MINIO_ACCESS_KEY = config('MINIO_ACCESS_KEY', default='')
+MINIO_SECRET_KEY = config('MINIO_SECRET_KEY', default='')
+MINIO_BUCKET_NAME = config('MINIO_BUCKET_NAME', default='')
+MINIO_SECURE = config('MINIO_SECURE', default=True, cast=bool)
 
 DEBUG = config('DEBUG', default=False, cast=bool)
 

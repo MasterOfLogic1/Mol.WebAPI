@@ -1,13 +1,17 @@
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.parsers import MultiPartParser, FormParser
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.shortcuts import get_object_or_404
 from .models import Course
-from .serializers import CourseSerializer
+from .serializers import CourseSerializer, CourseInputSerializer
 from apps.shared.models import InternalServerError
+from apps.shared.util import upload_file_to_minio
+import uuid
+from datetime import datetime
 
 # List courses with pagination (Public)
 @extend_schema(
@@ -82,14 +86,15 @@ def get_course(request, course_id):
 # Create course (Admin only)
 @extend_schema(
     methods=["POST"],
-    request=CourseSerializer,
+    request=CourseInputSerializer,
     responses={201: CourseSerializer, 400: {"description": "Bad Request"}},
     summary="Create Course",
-    description="Creates a new course. Admin only.",
+    description="Creates a new course. Admin only. Upload thumbnail as a file in the 'thumbnail' field.",
     tags=["Course"]
 )
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
 def create_course(request):
     try:
         # Check if user is admin
@@ -99,9 +104,30 @@ def create_course(request):
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        serializer = CourseSerializer(data=request.data)
+        # Handle thumbnail upload if provided
+        thumbnail_url = None
+        if 'thumbnail' in request.FILES:
+            thumbnail_file = request.FILES['thumbnail']
+            # Generate unique filename
+            file_extension = thumbnail_file.name.split('.')[-1] if '.' in thumbnail_file.name else 'jpg'
+            unique_filename = f"courses/{uuid.uuid4()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_extension}"
+            
+            # Upload to MinIO
+            upload_result = upload_file_to_minio(
+                file=thumbnail_file,
+                object_name=unique_filename,
+                content_type=thumbnail_file.content_type
+            )
+            thumbnail_url = upload_result['url']
+        
+        # Use input serializer for validation (excludes thumbnail_url)
+        serializer = CourseInputSerializer(data=request.data)
         if serializer.is_valid():
             course = serializer.save()
+            # Set thumbnail_url if a thumbnail was uploaded
+            if thumbnail_url:
+                course.thumbnail_url = thumbnail_url
+                course.save()
             return Response(CourseSerializer(course).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
@@ -110,14 +136,15 @@ def create_course(request):
 # Update course (Admin only)
 @extend_schema(
     methods=["PUT"],
-    request=CourseSerializer,
+    request=CourseInputSerializer,
     responses={200: CourseSerializer, 400: {"description": "Bad Request"}, 404: {"description": "Course not found"}},
     summary="Update Course",
-    description="Updates an existing course. Admin only.",
+    description="Updates an existing course. Admin only. Upload thumbnail as a file in the 'thumbnail' field.",
     tags=["Course"]
 )
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
 def update_course(request, course_id):
     try:
         # Check if user is admin
@@ -128,10 +155,32 @@ def update_course(request, course_id):
             )
         
         course = get_object_or_404(Course, id=course_id)
-        serializer = CourseSerializer(course, data=request.data, partial=True)
+        
+        # Handle thumbnail upload if provided
+        thumbnail_url = None
+        if 'thumbnail' in request.FILES:
+            thumbnail_file = request.FILES['thumbnail']
+            # Generate unique filename
+            file_extension = thumbnail_file.name.split('.')[-1] if '.' in thumbnail_file.name else 'jpg'
+            unique_filename = f"courses/{uuid.uuid4()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_extension}"
+            
+            # Upload to MinIO
+            upload_result = upload_file_to_minio(
+                file=thumbnail_file,
+                object_name=unique_filename,
+                content_type=thumbnail_file.content_type
+            )
+            thumbnail_url = upload_result['url']
+        
+        # Use input serializer for validation (excludes thumbnail_url)
+        serializer = CourseInputSerializer(course, data=request.data, partial=True)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            course = serializer.save()
+            # Update thumbnail_url if a new thumbnail was uploaded
+            if thumbnail_url:
+                course.thumbnail_url = thumbnail_url
+                course.save()
+            return Response(CourseSerializer(course).data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
         raise InternalServerError(str(e))
