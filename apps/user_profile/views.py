@@ -4,8 +4,11 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from django.shortcuts import get_object_or_404
 from .models import UserProfile
-from .serializers import UserProfileSerializer
+from .serializers import UserProfileSerializer, UserWithProfileSerializer
+from apps.account.models import User
+from apps.shared.models import InternalServerError
 
 @extend_schema(
     methods=["GET"],
@@ -46,3 +49,20 @@ def user_profile(request):
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@extend_schema(
+    methods=["GET"],
+    responses={200: UserWithProfileSerializer, 404: {"description": "User not found"}},
+    summary="Get User by Username",
+    description="Retrieves a user's details including profile information by username. Public endpoint.",
+    tags=["Profile"]
+)
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_user_by_username(request, username):
+    try:
+        user = get_object_or_404(User, username=username)
+        serializer = UserWithProfileSerializer(user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except Exception as e:
+        raise InternalServerError(str(e))

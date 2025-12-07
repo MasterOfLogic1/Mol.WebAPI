@@ -20,10 +20,11 @@ from datetime import datetime
     parameters=[
         OpenApiParameter(name='page', type=int, location=OpenApiParameter.QUERY, description='Page number (default: 1)', required=False),
         OpenApiParameter(name='page_size', type=int, location=OpenApiParameter.QUERY, description='Number of items per page (default: 10, max: 100)', required=False),
+        OpenApiParameter(name='username', type=str, location=OpenApiParameter.QUERY, description='Filter posts by username', required=False),
     ],
     responses={200: BlogPostSerializer(many=True)},
     summary="List Blog Posts",
-    description="Retrieves a paginated list of all blog posts. Use 'page' and 'page_size' query parameters for pagination. Public endpoint.",
+    description="Retrieves a paginated list of all blog posts. Use 'page' and 'page_size' query parameters for pagination. Filter by 'username' to get posts by a specific user. Public endpoint.",
     tags=["Blog"]
 )
 @api_view(['GET'])
@@ -31,6 +32,16 @@ from datetime import datetime
 def list_blog_posts(request):
     try:
         posts = BlogPost.objects.all()
+        
+        # Filter by username if provided
+        username = request.query_params.get('username')
+        if username:
+            from apps.account.models import User
+            try:
+                user = User.objects.get(username=username)
+                posts = posts.filter(created_by=user)
+            except User.DoesNotExist:
+                posts = posts.none()  # Return empty queryset if user not found
         
         # Pagination
         page = request.query_params.get('page', 1)
@@ -71,21 +82,64 @@ def list_blog_posts(request):
     methods=["GET"],
     responses={200: BlogPostSerializer, 404: {"description": "Blog post not found"}},
     summary="Get Blog Post",
-    description="Retrieves a single blog post by ID or slug. Public endpoint. Use /blog/4 or /blog/my-blog-post-slug",
+    description="Retrieves a single blog post by ID, slug, or username. Public endpoint. Use /blog/4, /blog/my-blog-post-slug, or /blog/username to get posts by user.",
     tags=["Blog"]
 )
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_blog_post(request, identifier):
     try:
+        from apps.account.models import User
+        
         # Try to get by ID first (if identifier is numeric)
         if identifier.isdigit():
             post = get_object_or_404(BlogPost, id=int(identifier))
+            serializer = BlogPostSerializer(post)
+            return Response(serializer.data, status=status.HTTP_200_OK)
         else:
-            # Otherwise, try to get by slug
-            post = get_object_or_404(BlogPost, slug=identifier)
-        serializer = BlogPostSerializer(post)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+            # Check if it's a username (user exists with this username)
+            user_exists = User.objects.filter(username=identifier).exists()
+            if user_exists:
+                # If it's a username, return all posts by that user (similar to list but filtered)
+                user = get_object_or_404(User, username=identifier)
+                posts = BlogPost.objects.filter(created_by=user)
+                
+                # Pagination
+                page = request.query_params.get('page', 1)
+                page_size = request.query_params.get('page_size', 10)
+                
+                try:
+                    page_size = int(page_size)
+                    if page_size > 100:
+                        page_size = 100
+                    if page_size < 1:
+                        page_size = 10
+                except (ValueError, TypeError):
+                    page_size = 10
+                
+                paginator = Paginator(posts, page_size)
+                
+                try:
+                    posts_page = paginator.page(page)
+                except PageNotAnInteger:
+                    posts_page = paginator.page(1)
+                except EmptyPage:
+                    posts_page = paginator.page(paginator.num_pages)
+                
+                serializer = BlogPostSerializer(posts_page, many=True)
+                
+                return Response({
+                    'count': paginator.count,
+                    'page': posts_page.number,
+                    'page_size': page_size,
+                    'total_pages': paginator.num_pages,
+                    'results': serializer.data
+                }, status=status.HTTP_200_OK)
+            else:
+                # Otherwise, try to get by slug
+                post = get_object_or_404(BlogPost, slug=identifier)
+                serializer = BlogPostSerializer(post)
+                return Response(serializer.data, status=status.HTTP_200_OK)
     except Exception as e:
         raise InternalServerError(str(e))
 

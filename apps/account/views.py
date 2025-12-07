@@ -79,6 +79,11 @@ def register_view(request):
         if User.objects.filter(email=email).exists():
             return Response({"error": "email already in use"}, status=status.HTTP_400_BAD_REQUEST)
         
+        # Check if username already exists (if provided)
+        username = request.data.get("username", "").strip()
+        if username and User.objects.filter(username=username).exists():
+            return Response({"error": "username already in use"}, status=status.HTTP_400_BAD_REQUEST)
+        
         serializer = RegisterationSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()

@@ -11,6 +11,7 @@ from apps.shared.models import CustomWebApiException
 User = get_user_model()
 
 class RegisterationSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(required=True, help_text='Username (must be unique)')
     firstname = serializers.CharField(write_only=True, required=True)
     lastname = serializers.CharField(write_only=True, required=True)
     middlename = serializers.CharField(write_only=True, required=False, allow_blank=True)
@@ -18,7 +19,7 @@ class RegisterationSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ['email', 'password', 'firstname', 'lastname', 'middlename', 'phonenumber']
+        fields = ['email', 'username', 'password', 'firstname', 'lastname', 'middlename', 'phonenumber']
         extra_kwargs = {
             'password': {'write_only': True},
         }
@@ -29,8 +30,13 @@ class RegisterationSerializer(serializers.ModelSerializer):
         lastname = validated_data.pop('lastname')
         middlename = validated_data.pop('middlename', '')
         phonenumber = validated_data.pop('phonenumber', '')
+        username = validated_data.pop('username', '').strip()
         
         email = validated_data['email']
+        
+        # Validate username is provided
+        if not username:
+            raise serializers.ValidationError({'username': 'Username is required.'})
         
         # Get or create default member role
         from .models import UserRole
@@ -40,6 +46,7 @@ class RegisterationSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(
             email=email,
             password=validated_data['password'],
+            username=username,
             role=member_role
         )
         
@@ -56,7 +63,7 @@ class RegisterationSerializer(serializers.ModelSerializer):
         return user
     
 class LoginSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+    email = serializers.CharField(help_text='Email or username')
     password = serializers.CharField(write_only=True)
 
 
@@ -140,15 +147,31 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
-        # Instead of calling super().validate(attrs) right away,
-        # we manually authenticate and raise our own custom error message.
-        username_field = self.username_field
-        credentials = {
-            username_field: attrs.get(username_field),
-            'password': attrs.get('password')
-        }
-
-        user = authenticate(**credentials)
+        # Support authentication with either email or username
+        email_or_username = attrs.get('email')  # The field is named 'email' but can contain username
+        password = attrs.get('password')
+        
+        # Try to find user by email or username
+        from apps.account.models import User
+        
+        user = None
+        
+        # First try to find user by email
+        try:
+            user = User.objects.get(email=email_or_username)
+        except User.DoesNotExist:
+            # If not found by email, try username
+            try:
+                user = User.objects.get(username=email_or_username)
+            except User.DoesNotExist:
+                pass
+        
+        # If user found, check password
+        if user and user.check_password(password):
+            # Password is correct, use this user
+            pass
+        else:
+            user = None
 
         if not user:
             # Raise custom error if authentication fails

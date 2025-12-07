@@ -47,6 +47,7 @@ class CustomUserManager(BaseUserManager):
             
 class User(AbstractBaseUser):
     email = models.EmailField(unique=True)
+    username = models.CharField(max_length=150, unique=True, blank=True, null=True, db_index=True)
     password = models.CharField(max_length=128)  # Hashed password (from AbstractBaseUser)
     role = models.ForeignKey(UserRole, on_delete=models.SET_NULL, null=True, blank=True, related_name='users')
     is_active = models.BooleanField(default=True)
