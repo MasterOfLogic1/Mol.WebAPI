@@ -1,14 +1,18 @@
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.parsers import MultiPartParser, FormParser
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.shortcuts import get_object_or_404
 from .models import BlogPost
-from .serializers import BlogPostSerializer
+from .serializers import BlogPostSerializer, BlogPostInputSerializer
 from .permissions import IsWriterOrAdmin, CanCreateBlogPost
 from apps.shared.models import InternalServerError
+from apps.shared.util import upload_file_to_minio
+import uuid
+from datetime import datetime
 
 # List blog posts with pagination (Public)
 @extend_schema(
@@ -83,14 +87,15 @@ def get_blog_post(request, post_id):
 # Create blog post (Writer and Admin only)
 @extend_schema(
     methods=["POST"],
-    request=BlogPostSerializer,
+    request=BlogPostInputSerializer,
     responses={201: BlogPostSerializer, 400: {"description": "Bad Request"}},
     summary="Create Blog Post",
-    description="Creates a new blog post. Writers and admins only.",
+    description="Creates a new blog post. Writers and admins only. Upload thumbnail as a file in the 'thumbnail' field.",
     tags=["Blog"]
 )
 @api_view(['POST'])
 @permission_classes([IsAuthenticated, CanCreateBlogPost])
+@parser_classes([MultiPartParser, FormParser])
 def create_blog_post(request):
     try:
         # Check if user is writer or admin
@@ -100,10 +105,31 @@ def create_blog_post(request):
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        serializer = BlogPostSerializer(data=request.data)
+        # Handle thumbnail upload if provided
+        thumbnail_url = None
+        if 'thumbnail' in request.FILES:
+            thumbnail_file = request.FILES['thumbnail']
+            # Generate unique filename
+            file_extension = thumbnail_file.name.split('.')[-1] if '.' in thumbnail_file.name else 'jpg'
+            unique_filename = f"blog/{uuid.uuid4()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_extension}"
+            
+            # Upload to MinIO
+            upload_result = upload_file_to_minio(
+                file=thumbnail_file,
+                object_name=unique_filename,
+                content_type=thumbnail_file.content_type
+            )
+            thumbnail_url = upload_result['url']
+        
+        # Use input serializer for validation (excludes thumbnail_url)
+        serializer = BlogPostInputSerializer(data=request.data)
         if serializer.is_valid():
             # Set the creator to the current user
             post = serializer.save(created_by=request.user)
+            # Set thumbnail_url if a thumbnail was uploaded
+            if thumbnail_url:
+                post.thumbnail_url = thumbnail_url
+                post.save()
             return Response(BlogPostSerializer(post).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
@@ -112,14 +138,15 @@ def create_blog_post(request):
 # Update blog post (Writer can only update own posts, Admin can update any)
 @extend_schema(
     methods=["PUT"],
-    request=BlogPostSerializer,
+    request=BlogPostInputSerializer,
     responses={200: BlogPostSerializer, 400: {"description": "Bad Request"}, 404: {"description": "Blog post not found"}},
     summary="Update Blog Post",
-    description="Updates an existing blog post. Writers can only update their own posts, admins can update any.",
+    description="Updates an existing blog post. Writers can only update their own posts, admins can update any. Upload thumbnail as a file in the 'thumbnail' field.",
     tags=["Blog"]
 )
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated, IsWriterOrAdmin])
+@parser_classes([MultiPartParser, FormParser])
 def update_blog_post(request, post_id):
     try:
         post = get_object_or_404(BlogPost, id=post_id)
@@ -132,10 +159,31 @@ def update_blog_post(request, post_id):
                     status=status.HTTP_403_FORBIDDEN
                 )
         
-        serializer = BlogPostSerializer(post, data=request.data, partial=True)
+        # Handle thumbnail upload if provided
+        thumbnail_url = None
+        if 'thumbnail' in request.FILES:
+            thumbnail_file = request.FILES['thumbnail']
+            # Generate unique filename
+            file_extension = thumbnail_file.name.split('.')[-1] if '.' in thumbnail_file.name else 'jpg'
+            unique_filename = f"blog/{uuid.uuid4()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_extension}"
+            
+            # Upload to MinIO
+            upload_result = upload_file_to_minio(
+                file=thumbnail_file,
+                object_name=unique_filename,
+                content_type=thumbnail_file.content_type
+            )
+            thumbnail_url = upload_result['url']
+        
+        # Use input serializer for validation (excludes thumbnail_url)
+        serializer = BlogPostInputSerializer(post, data=request.data, partial=True)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            post = serializer.save()
+            # Update thumbnail_url if a new thumbnail was uploaded
+            if thumbnail_url:
+                post.thumbnail_url = thumbnail_url
+                post.save()
+            return Response(BlogPostSerializer(post).data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
         raise InternalServerError(str(e))

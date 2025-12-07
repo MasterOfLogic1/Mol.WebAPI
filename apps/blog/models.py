@@ -25,6 +25,7 @@ class BlogPost(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     body = models.TextField()
+    thumbnail_url = models.URLField(blank=True, null=True)
     tags = models.ManyToManyField(Tag, related_name='blog_posts', blank=True)
     date_uploaded = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
