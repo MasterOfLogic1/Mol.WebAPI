@@ -70,8 +70,8 @@ class BlogPostSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = BlogPost
-        fields = ['id', 'title', 'description', 'body', 'thumbnail', 'thumbnail_url', 'tags', 'tag_names', 'date_uploaded', 'updated_at', 'created_by', 'creator_fullname']
-        read_only_fields = ['id', 'date_uploaded', 'updated_at', 'created_by', 'creator_fullname', 'tags', 'thumbnail_url']
+        fields = ['id', 'title', 'slug', 'description', 'body', 'thumbnail', 'thumbnail_url', 'tags', 'tag_names', 'date_uploaded', 'updated_at', 'created_by', 'creator_fullname']
+        read_only_fields = ['id', 'slug', 'date_uploaded', 'updated_at', 'created_by', 'creator_fullname', 'tags', 'thumbnail_url']
     
     def get_creator_fullname(self, obj):
         """Returns the full name of the creator"""

@@ -23,6 +23,7 @@ class Tag(models.Model):
 
 class BlogPost(models.Model):
     title = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=255, unique=True, blank=True, db_index=True)
     description = models.TextField(blank=True, null=True)
     body = models.TextField()
     thumbnail_url = models.URLField(blank=True, null=True)
@@ -33,6 +34,17 @@ class BlogPost(models.Model):
 
     def __str__(self):
         return self.title
+
+    def save(self, *args, **kwargs):
+        from django.utils.text import slugify
+        import uuid
+        # Generate slug if it doesn't exist
+        if not self.slug:
+            base_slug = slugify(self.title)
+            # Generate a unique GUID
+            guid = str(uuid.uuid4())[:8]  # Use first 8 characters of UUID
+            self.slug = f"{base_slug}-{guid}"
+        super().save(*args, **kwargs)
 
     @property
     def creator_fullname(self):

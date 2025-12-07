@@ -71,14 +71,19 @@ def list_blog_posts(request):
     methods=["GET"],
     responses={200: BlogPostSerializer, 404: {"description": "Blog post not found"}},
     summary="Get Blog Post",
-    description="Retrieves a single blog post by ID. Public endpoint.",
+    description="Retrieves a single blog post by ID or slug. Public endpoint. Use /blog/4 or /blog/my-blog-post-slug",
     tags=["Blog"]
 )
 @api_view(['GET'])
 @permission_classes([AllowAny])
-def get_blog_post(request, post_id):
+def get_blog_post(request, identifier):
     try:
-        post = get_object_or_404(BlogPost, id=post_id)
+        # Try to get by ID first (if identifier is numeric)
+        if identifier.isdigit():
+            post = get_object_or_404(BlogPost, id=int(identifier))
+        else:
+            # Otherwise, try to get by slug
+            post = get_object_or_404(BlogPost, slug=identifier)
         serializer = BlogPostSerializer(post)
         return Response(serializer.data, status=status.HTTP_200_OK)
     except Exception as e:
@@ -141,15 +146,20 @@ def create_blog_post(request):
     request=BlogPostInputSerializer,
     responses={200: BlogPostSerializer, 400: {"description": "Bad Request"}, 404: {"description": "Blog post not found"}},
     summary="Update Blog Post",
-    description="Updates an existing blog post. Writers can only update their own posts, admins can update any. Upload thumbnail as a file in the 'thumbnail' field.",
+    description="Updates an existing blog post. Writers can only update their own posts, admins can update any. Upload thumbnail as a file in the 'thumbnail' field. Use /blog/4/update or /blog/my-blog-post-slug/update",
     tags=["Blog"]
 )
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated, IsWriterOrAdmin])
 @parser_classes([MultiPartParser, FormParser])
-def update_blog_post(request, post_id):
+def update_blog_post(request, identifier):
     try:
-        post = get_object_or_404(BlogPost, id=post_id)
+        # Try to get by ID first (if identifier is numeric)
+        if identifier.isdigit():
+            post = get_object_or_404(BlogPost, id=int(identifier))
+        else:
+            # Otherwise, try to get by slug
+            post = get_object_or_404(BlogPost, slug=identifier)
         
         # Check permissions
         if not request.user.role or request.user.role.name != 'admin':
@@ -193,14 +203,19 @@ def update_blog_post(request, post_id):
     methods=["DELETE"],
     responses={204: {"description": "Blog post deleted"}, 404: {"description": "Blog post not found"}},
     summary="Delete Blog Post",
-    description="Deletes a blog post. Writers can only delete their own posts, admins can delete any.",
+    description="Deletes a blog post. Writers can only delete their own posts, admins can delete any. Use /blog/4/delete or /blog/my-blog-post-slug/delete",
     tags=["Blog"]
 )
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated, IsWriterOrAdmin])
-def delete_blog_post(request, post_id):
+def delete_blog_post(request, identifier):
     try:
-        post = get_object_or_404(BlogPost, id=post_id)
+        # Try to get by ID first (if identifier is numeric)
+        if identifier.isdigit():
+            post = get_object_or_404(BlogPost, id=int(identifier))
+        else:
+            # Otherwise, try to get by slug
+            post = get_object_or_404(BlogPost, slug=identifier)
         
         # Check permissions
         if not request.user.role or request.user.role.name != 'admin':
