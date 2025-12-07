@@ -1,13 +1,26 @@
 from rest_framework import serializers
-from .models import BlogPost
+from .models import BlogPost, Tag
+
+class TagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = ['id', 'name', 'slug']
+        read_only_fields = ['id', 'slug']
 
 class BlogPostSerializer(serializers.ModelSerializer):
     creator_fullname = serializers.SerializerMethodField()
+    tags = TagSerializer(many=True, read_only=True)
+    tag_names = serializers.ListField(
+        child=serializers.CharField(),
+        write_only=True,
+        required=False,
+        help_text='List of tag names to associate with the blog post'
+    )
     
     class Meta:
         model = BlogPost
-        fields = ['id', 'title', 'description', 'body', 'date_uploaded', 'updated_at', 'created_by', 'creator_fullname']
-        read_only_fields = ['id', 'date_uploaded', 'updated_at', 'created_by', 'creator_fullname']
+        fields = ['id', 'title', 'description', 'body', 'tags', 'tag_names', 'date_uploaded', 'updated_at', 'created_by', 'creator_fullname']
+        read_only_fields = ['id', 'date_uploaded', 'updated_at', 'created_by', 'creator_fullname', 'tags']
     
     def get_creator_fullname(self, obj):
         """Returns the full name of the creator"""
@@ -22,4 +35,38 @@ class BlogPostSerializer(serializers.ModelSerializer):
         except Exception:
             pass
         return obj.created_by.email if obj.created_by else ''
+    
+    def create(self, validated_data):
+        tag_names = validated_data.pop('tag_names', [])
+        blog_post = BlogPost.objects.create(**validated_data)
+        
+        # Create or get tags and associate them
+        for tag_name in tag_names:
+            if tag_name.strip():  # Only process non-empty tag names
+                tag, created = Tag.objects.get_or_create(
+                    name=tag_name.strip()
+                )
+                blog_post.tags.add(tag)
+        
+        return blog_post
+    
+    def update(self, instance, validated_data):
+        tag_names = validated_data.pop('tag_names', None)
+        
+        # Update other fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        # Update tags if provided
+        if tag_names is not None:
+            instance.tags.clear()
+            for tag_name in tag_names:
+                if tag_name.strip():  # Only process non-empty tag names
+                    tag, created = Tag.objects.get_or_create(
+                        name=tag_name.strip()
+                    )
+                    instance.tags.add(tag)
+        
+        return instance
 
