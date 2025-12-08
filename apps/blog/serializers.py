@@ -60,6 +60,7 @@ class BlogPostSerializer(serializers.ModelSerializer):
     """Serializer for blog post responses - includes thumbnail_url"""
     creator_fullname = serializers.SerializerMethodField()
     creator_username = serializers.SerializerMethodField()
+    creator_thumbnail_url = serializers.SerializerMethodField()
     tags = TagSerializer(many=True, read_only=True)
     tag_names = serializers.ListField(
         child=serializers.CharField(),
@@ -71,8 +72,8 @@ class BlogPostSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = BlogPost
-        fields = ['id', 'title', 'slug', 'description', 'body', 'thumbnail', 'thumbnail_url', 'tags', 'tag_names', 'date_uploaded', 'updated_at', 'created_by', 'creator_fullname', 'creator_username']
-        read_only_fields = ['id', 'slug', 'date_uploaded', 'updated_at', 'created_by', 'creator_fullname', 'creator_username', 'tags', 'thumbnail_url']
+        fields = ['id', 'title', 'slug', 'description', 'body', 'thumbnail', 'thumbnail_url', 'tags', 'tag_names', 'date_uploaded', 'updated_at', 'created_by', 'creator_fullname', 'creator_username', 'creator_thumbnail_url']
+        read_only_fields = ['id', 'slug', 'date_uploaded', 'updated_at', 'created_by', 'creator_fullname', 'creator_username', 'creator_thumbnail_url', 'tags', 'thumbnail_url']
     
     def get_creator_fullname(self, obj):
         """Returns the full name of the creator"""
@@ -91,6 +92,15 @@ class BlogPostSerializer(serializers.ModelSerializer):
     def get_creator_username(self, obj):
         """Returns the username of the creator"""
         return obj.created_by.username if obj.created_by and obj.created_by.username else None
+    
+    def get_creator_thumbnail_url(self, obj):
+        """Returns the thumbnail_url of the creator's profile"""
+        try:
+            if hasattr(obj.created_by, 'profile') and obj.created_by.profile:
+                return obj.created_by.profile.thumbnail_url
+        except Exception:
+            pass
+        return None
     
     def create(self, validated_data):
         tag_names = validated_data.pop('tag_names', [])
