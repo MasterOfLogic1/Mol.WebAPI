@@ -15,6 +15,8 @@ class UserProfile(models.Model):
     lastname = models.CharField(max_length=100)
     middlename = models.CharField(max_length=100, null=True, blank=True)
     phonenumber = models.CharField(max_length=20, null=True, blank=True)
+    occupation = models.CharField(max_length=200, null=True, blank=True)
+    bio = models.TextField(null=True, blank=True)
     thumbnail_url = models.URLField(blank=True, null=True)
 
     def __str__(self):

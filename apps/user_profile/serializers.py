@@ -8,6 +8,8 @@ class UserProfileInputSerializer(serializers.Serializer):
     lastname = serializers.CharField(required=True, max_length=100)
     middlename = serializers.CharField(required=False, allow_blank=True, max_length=100)
     phonenumber = serializers.CharField(required=False, allow_blank=True, max_length=20)
+    occupation = serializers.CharField(required=False, allow_blank=True, max_length=200)
+    bio = serializers.CharField(required=False, allow_blank=True)
     thumbnail = serializers.FileField(required=False, help_text='Upload profile picture')
     
     def create(self, validated_data):
@@ -30,7 +32,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = UserProfile
-        fields = ['id', 'firstname', 'lastname', 'middlename', 'phonenumber', 'thumbnail', 'thumbnail_url']
+        fields = ['id', 'firstname', 'lastname', 'middlename', 'phonenumber', 'occupation', 'bio', 'thumbnail', 'thumbnail_url']
         read_only_fields = ['id', 'thumbnail_url']
 
 class UserWithProfileSerializer(serializers.ModelSerializer):
