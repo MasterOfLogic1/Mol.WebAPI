@@ -142,6 +142,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     def get_token(cls, user):
         token = super().get_token(user)
         token['email'] = user.email
+        token['username'] = user.username if user.username else None
         token['user_id'] = user.id
         token['role'] = user.role.name if user.role else None
         return token
@@ -198,6 +199,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         from rest_framework_simplejwt.tokens import AccessToken
         access_token = AccessToken.for_user(user)
         access_token['email'] = user.email
+        access_token['username'] = user.username if user.username else None
         access_token['user_id'] = user.id
         access_token['role'] = user.role.name if user.role else None
 
