@@ -59,6 +59,7 @@ class BlogPostInputSerializer(serializers.Serializer):
 class BlogPostSerializer(serializers.ModelSerializer):
     """Serializer for blog post responses - includes thumbnail_url"""
     creator_fullname = serializers.SerializerMethodField()
+    creator_username = serializers.SerializerMethodField()
     tags = TagSerializer(many=True, read_only=True)
     tag_names = serializers.ListField(
         child=serializers.CharField(),
@@ -70,8 +71,8 @@ class BlogPostSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = BlogPost
-        fields = ['id', 'title', 'slug', 'description', 'body', 'thumbnail', 'thumbnail_url', 'tags', 'tag_names', 'date_uploaded', 'updated_at', 'created_by', 'creator_fullname']
-        read_only_fields = ['id', 'slug', 'date_uploaded', 'updated_at', 'created_by', 'creator_fullname', 'tags', 'thumbnail_url']
+        fields = ['id', 'title', 'slug', 'description', 'body', 'thumbnail', 'thumbnail_url', 'tags', 'tag_names', 'date_uploaded', 'updated_at', 'created_by', 'creator_fullname', 'creator_username']
+        read_only_fields = ['id', 'slug', 'date_uploaded', 'updated_at', 'created_by', 'creator_fullname', 'creator_username', 'tags', 'thumbnail_url']
     
     def get_creator_fullname(self, obj):
         """Returns the full name of the creator"""
@@ -86,6 +87,10 @@ class BlogPostSerializer(serializers.ModelSerializer):
         except Exception:
             pass
         return obj.created_by.email if obj.created_by else ''
+    
+    def get_creator_username(self, obj):
+        """Returns the username of the creator"""
+        return obj.created_by.username if obj.created_by and obj.created_by.username else None
     
     def create(self, validated_data):
         tag_names = validated_data.pop('tag_names', [])
