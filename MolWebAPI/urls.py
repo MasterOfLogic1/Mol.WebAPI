@@ -12,6 +12,8 @@ urlpatterns = [
     path('api/blog/', include('apps.blog.urls')),
     path('api/team/', include('apps.team.urls')),
     path('api/admin/', include('apps.admin_panel.urls')),
+    path('api/newsletter/', include('apps.newsletter.urls')),
+    path('api/contact/', include('apps.contact.urls')),
     # OpenAPI schema:
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     # Swagger UI:

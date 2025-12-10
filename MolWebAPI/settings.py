@@ -55,6 +55,8 @@ INSTALLED_APPS = [
     'apps.blog',
     'apps.team',
     'apps.admin_panel',
+    'apps.newsletter',
+    'apps.contact',
     'drf_spectacular',
     'corsheaders',
 ]

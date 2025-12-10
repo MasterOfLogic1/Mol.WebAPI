@@ -138,8 +138,8 @@ def get_blog_post(request, identifier):
             else:
                 # Otherwise, try to get by slug
                 post = get_object_or_404(BlogPost, slug=identifier)
-                serializer = BlogPostSerializer(post)
-                return Response(serializer.data, status=status.HTTP_200_OK)
+        serializer = BlogPostSerializer(post)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     except Exception as e:
         raise InternalServerError(str(e))
 
