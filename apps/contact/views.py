@@ -4,6 +4,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from drf_spectacular.utils import extend_schema
 from django.conf import settings
+from django.utils import timezone
+from datetime import timedelta
 from .models import ContactMessage
 from .serializers import GeneralContactSerializer
 from apps.shared.util import send_email
@@ -14,10 +16,11 @@ from apps.shared.models import InternalServerError
     request=GeneralContactSerializer,
     responses={
         201: {"message": "Contact message sent successfully"},
-        400: {"error": "Invalid data"}
+        400: {"error": "Invalid data"},
+        429: {"error": "You have already sent a message recently. Please wait 7 days before sending another message."}
     },
     summary="General Contact",
-    description="Submit a general contact message. The message will be sent via email and stored in the database.",
+    description="Submit a general contact message. The message will be sent via email and stored in the database. Rate limited to one message per email every 7 days.",
     tags=["Contact"]
 )
 @api_view(['POST'])
@@ -28,11 +31,30 @@ def general_contact(request):
     serializer.is_valid(raise_exception=True)
     
     name = serializer.validated_data.get('name')
-    email = serializer.validated_data.get('email')
+    email = serializer.validated_data.get('email').lower().strip()
     subject = serializer.validated_data.get('subject')
     message = serializer.validated_data.get('message')
     
     try:
+        # Check if there's a recent message from this email (within last 7 days)
+        seven_days_ago = timezone.now() - timedelta(days=7)
+        recent_message = ContactMessage.objects.filter(
+            email=email,
+            created_at__gte=seven_days_ago
+        ).order_by('-created_at').first()
+        
+        if recent_message:
+            # Calculate days remaining
+            days_passed = (timezone.now() - recent_message.created_at).days
+            days_remaining = 7 - days_passed
+            
+            return Response(
+                {
+                    "error": f"You have already sent a message recently. Please wait {days_remaining} more day(s) before sending another message."
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS
+            )
+        
         # Store the contact message in the database
         contact_message = ContactMessage.objects.create(
             name=name,
